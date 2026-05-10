@@ -43,6 +43,7 @@ import nie.translator.rtranslator.voice_translation.neural_networks.voice.Record
 public class WalkieTalkieService extends VoiceTranslationService {
     //properties
     public static final int SPEECH_BEAM_SIZE = 1;
+    public static final int AUTOMATIC_SPEECH_REFINE_BEAM_SIZE = 1;
     public static final int TRANSLATOR_BEAM_SIZE = 1;
 
     // commands
@@ -226,14 +227,14 @@ public class WalkieTalkieService extends VoiceTranslationService {
                 }else if(manualRecognizingAutoLanguage){
                     notifyMicDeactivated();   // we notify the client
                     // we start the speech recognition in both languages
-                    speechRecognizer.recognize(data, SPEECH_BEAM_SIZE, firstLanguage.getCode(), secondLanguage.getCode());
+                    speechRecognizer.recognize(data, AUTOMATIC_SPEECH_REFINE_BEAM_SIZE, firstLanguage.getCode(), secondLanguage.getCode());
 
                 }else if(isMicAutomatic) {
                     //we stop speech recognition
                     stopVoiceRecorder();
                     notifyMicDeactivated();   // we notify the client
                     // we start the speech recognition in both languages
-                    speechRecognizer.recognize(data, SPEECH_BEAM_SIZE, firstLanguage.getCode(), secondLanguage.getCode());
+                    speechRecognizer.recognize(data, AUTOMATIC_SPEECH_REFINE_BEAM_SIZE, firstLanguage.getCode(), secondLanguage.getCode());
                 }
             }
 
@@ -410,19 +411,18 @@ public class WalkieTalkieService extends VoiceTranslationService {
     }
 
     private void compareResults(NeuralNetworkApiResult firstResult, NeuralNetworkApiResult secondResult) {
+        if(firstResult.getText().equals(Recognizer.UNDEFINED_TEXT) && !secondResult.getText().equals(Recognizer.UNDEFINED_TEXT)){
+            translate(secondResult.getText(), secondLanguage, firstLanguage, TRANSLATOR_BEAM_SIZE, false, secondResultTranslateListener);
+            return;
+        }
+        if(secondResult.getText().equals(Recognizer.UNDEFINED_TEXT) && !firstResult.getText().equals(Recognizer.UNDEFINED_TEXT)){
+            translate(firstResult.getText(), firstLanguage, secondLanguage, TRANSLATOR_BEAM_SIZE, false, firstResultTranslateListener);
+            return;
+        }
         translator.detectLanguage(firstResult, secondResult, false, new Translator.DetectMultiLanguageListener() {
             @Override
             public void onDetectedText(NeuralNetworkApiResult firstResult, NeuralNetworkApiResult secondResult, int message) {
                 if (message == ErrorCodes.BOTH_RESULTS_SUCCESS){  // if both results languages were found
-                    if(firstResult.getText().equals(Recognizer.UNDEFINED_TEXT) && !secondResult.getText().equals(Recognizer.UNDEFINED_TEXT)){
-                        translate(secondResult.getText(), secondLanguage, firstLanguage, TRANSLATOR_BEAM_SIZE, false, secondResultTranslateListener);
-                        return;
-                    }
-                    if(secondResult.getText().equals(Recognizer.UNDEFINED_TEXT) && !firstResult.getText().equals(Recognizer.UNDEFINED_TEXT)){
-                        translate(firstResult.getText(), firstLanguage, secondLanguage, TRANSLATOR_BEAM_SIZE, false, firstResultTranslateListener);
-                        return;
-                    }
-
                     if (firstResult.getLanguage().equalsLanguage(firstLanguage)) {
                         if (secondResult.getLanguage().equalsLanguage(secondLanguage)) {  // if both have recognized their respective language
                             compareResultsConfidence(firstResult, secondResult);

@@ -25,8 +25,10 @@ import android.os.Handler;
 import android.os.Looper;
 
 import androidx.appcompat.app.AlertDialog;
+import java.io.File;
 import java.util.ArrayList;
 import nie.translator.rtranslator.access.AccessActivity;
+import nie.translator.rtranslator.access.DownloadFragment;
 import nie.translator.rtranslator.tools.CustomLocale;
 import nie.translator.rtranslator.tools.ErrorCodes;
 import nie.translator.rtranslator.tools.ImageActivity;
@@ -79,6 +81,10 @@ public class LoadingActivity extends GeneralActivity {
         super.onResume();
         isVisible = true;
         global = (Global) getApplication();
+        if (!global.isFirstStart() && !areRequiredModelFilesAvailable()) {
+            restartDownload();
+            return;
+        }
         if (global.isFirstStart()) {
             Intent intent = new Intent(this, AccessActivity.class);
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -91,6 +97,19 @@ public class LoadingActivity extends GeneralActivity {
             initializeApp(false);
             //onFailure(new int[]{ErrorCodes.GOOGLE_TTS_ERROR}, 0);
         }
+    }
+
+    private boolean areRequiredModelFilesAvailable() {
+        File filesDir = global.getFilesDir();
+        if (filesDir == null) {
+            return false;
+        }
+        for (String modelName : DownloadFragment.DOWNLOAD_NAMES) {
+            if (!new File(filesDir, modelName).exists()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override

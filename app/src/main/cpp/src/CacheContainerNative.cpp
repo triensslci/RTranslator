@@ -58,7 +58,14 @@ public:
     }
 
     void reorder(std::vector<int> * indexes){
-        if((*indexes)[0] == 0 && (*indexes)[1] == 1 && (*indexes)[2] == 2 && (*indexes)[3] == 3){
+        bool alreadyOrdered = true;
+        for (int i = 0; i < indexes->size(); ++i) {
+            if((*indexes)[i] != i) {
+                alreadyOrdered = false;
+                break;
+            }
+        }
+        if(alreadyOrdered){
             return;
         }
         float * cacheValueTemp = new float[dim2*dim1*dim3*dim4*dim5];

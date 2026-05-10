@@ -28,6 +28,7 @@ import androidx.collection.ArraySet;
 
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.mlkit.nl.languageid.IdentifiedLanguage;
 import com.google.mlkit.nl.languageid.LanguageIdentification;
 import com.google.mlkit.nl.languageid.LanguageIdentificationOptions;
 import com.google.mlkit.nl.languageid.LanguageIdentifier;
@@ -44,6 +45,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -347,18 +349,20 @@ public class Translator extends NeuralNetworkApi {
             confidenceThreshold = 0.01F;
         }
         LanguageIdentifier languageIdentifier = LanguageIdentification.getClient(new LanguageIdentificationOptions.Builder().setConfidenceThreshold(confidenceThreshold).build());
-        languageIdentifier.identifyLanguage(firstResult.getText())
+        languageIdentifier.identifyPossibleLanguages(firstResult.getText())
                 .addOnSuccessListener(
-                        new OnSuccessListener<String>() {
+                        new OnSuccessListener<List<IdentifiedLanguage>>() {
                             @Override
-                            public void onSuccess(@Nullable String languageCode) {
+                            public void onSuccess(List<IdentifiedLanguage> identifiedLanguages) {
                                 boolean firstResultFailed = false;
-                                if (languageCode == null || languageCode.equals("und")) {
+                                IdentifiedLanguage detectedLanguage = selectBestIdentifiedLanguage(identifiedLanguages);
+                                if (detectedLanguage == null) {
                                     firstResultFailed = true;
                                     Log.i("language detection", "Can't identify language.");
                                 } else {
-                                    firstResult.setLanguage(new CustomLocale(languageCode));
-                                    Log.i("language detection", "Language: " + languageCode);
+                                    firstResult.setLanguage(new CustomLocale(detectedLanguage.getLanguageTag()));
+                                    firstResult.setConfidenceScore(detectedLanguage.getConfidence());
+                                    Log.i("language detection", "Language: " + detectedLanguage.getLanguageTag() + ", confidence: " + detectedLanguage.getConfidence());
                                 }
                                 detectSecondLanguage(firstResult, secondResult, forceResult, firstResultFailed, responseListener);
                             }
@@ -381,11 +385,12 @@ public class Translator extends NeuralNetworkApi {
         }
         LanguageIdentifier languageIdentifier = LanguageIdentification.getClient(
                 new LanguageIdentificationOptions.Builder().setConfidenceThreshold(confidenceThreshold).build());
-        languageIdentifier.identifyLanguage(secondResult.getText())
-                .addOnSuccessListener(new OnSuccessListener<String>() {
+        languageIdentifier.identifyPossibleLanguages(secondResult.getText())
+                .addOnSuccessListener(new OnSuccessListener<List<IdentifiedLanguage>>() {
                     @Override
-                    public void onSuccess(String languageCode) {
-                        if (languageCode == null || languageCode.equals("und")) {  //detection of second result failed
+                    public void onSuccess(List<IdentifiedLanguage> identifiedLanguages) {
+                        IdentifiedLanguage detectedLanguage = selectBestIdentifiedLanguage(identifiedLanguages);
+                        if (detectedLanguage == null) {  //detection of second result failed
                             Log.i("language detection", "Can't identify language.");
                             if (firstResultFailed) {  //detection of first result failed
                                 responseListener.onFailure(new int[]{ErrorCodes.BOTH_RESULTS_FAIL}, 0);
@@ -393,8 +398,9 @@ public class Translator extends NeuralNetworkApi {
                                 responseListener.onDetectedText(firstResult, secondResult, ErrorCodes.SECOND_RESULT_FAIL);
                             }
                         }else{  //detection of second result success
-                            Log.i("language detection", "Language: " + languageCode);
-                            secondResult.setLanguage(new CustomLocale(languageCode));
+                            Log.i("language detection", "Language: " + detectedLanguage.getLanguageTag() + ", confidence: " + detectedLanguage.getConfidence());
+                            secondResult.setLanguage(new CustomLocale(detectedLanguage.getLanguageTag()));
+                            secondResult.setConfidenceScore(detectedLanguage.getConfidence());
                             if (firstResultFailed) {  //detection of first result failed
                                 responseListener.onDetectedText(firstResult, secondResult, ErrorCodes.FIRST_RESULT_FAIL);
                             }else{    //detection of first result success
@@ -413,6 +419,22 @@ public class Translator extends NeuralNetworkApi {
                         }
                     }
                 });
+    }
+
+    private IdentifiedLanguage selectBestIdentifiedLanguage(List<IdentifiedLanguage> identifiedLanguages) {
+        if (identifiedLanguages == null || identifiedLanguages.isEmpty()) {
+            return null;
+        }
+        IdentifiedLanguage bestLanguage = null;
+        for (IdentifiedLanguage language : identifiedLanguages) {
+            if (language == null || language.getLanguageTag() == null || language.getLanguageTag().equals("und")) {
+                continue;
+            }
+            if (bestLanguage == null || language.getConfidence() > bestLanguage.getConfidence()) {
+                bestLanguage = language;
+            }
+        }
+        return bestLanguage;
     }
 
     public interface DetectLanguageListener extends TranslatorListener {

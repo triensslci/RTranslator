@@ -324,12 +324,7 @@ public class Recorder {
         public void run() {
             while (!Thread.currentThread().isInterrupted()) {
                 if (mAudioRecord != null) {
-                    int prevVoiceLength;
-                    if (isManualMode) {
-                        prevVoiceLength = (int) (0.1 * sampleRate);  //if we are using manual mode we use a reduced prev voice duration
-                    } else {
-                        prevVoiceLength = (global.getPrevVoiceDuration() / 1000) * sampleRate;
-                    }
+                    int prevVoiceLength = calculatePrevVoiceLength(global.getPrevVoiceDuration(), sampleRate, isManualMode);
                     int size;
                     int oldTailIndex = tailIndex;
                     boolean jumped;
@@ -391,6 +386,13 @@ public class Recorder {
 
     private int getMBufferSize(){
         return getMBufferRangeSize(headIndex, tailIndex);
+    }
+
+    static int calculatePrevVoiceLength(int prevVoiceDurationMillis, int sampleRate, boolean manualMode) {
+        if (manualMode) {
+            return Math.max(1, Math.round(0.1f * sampleRate));
+        }
+        return Math.max(1, Math.round((prevVoiceDurationMillis / 1000f) * sampleRate));
     }
 
     private int getMBufferRangeSize(int begin, int end){
